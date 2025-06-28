@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoASJ's sync</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f0f0f0;
+            margin: 20px;
+            display: flex;
+            flex-direction: column; /* Arrange content vertically */
+            align-items: center; /* Center content horizontally */
+            min-height: 95vh; /* Ensure body takes enough height for sticky footer */
+            position: relative; /* For sticky footer positioning */
+            padding-bottom: 100px; /* Space for the fixed global player */
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        /* Playlist Container remains the same */
+        .playlist-container {
+            display: flex;
+            flex-wrap: wrap; /* Allow items to wrap to the next line */
+            justify-content: center; /* Center items horizontally */
+            gap: 30px; /* Space between each song player */
+            max-width: 1200px; /* Limit the overall width of the playlist grid */
+            margin-bottom: 50px; /* Space above the global player */
+        }
+
+        .audio-player-container {
+            display: flex;
+            flex-direction: column; /* Stack items vertically: cover, then details/button */
+            align-items: center; /* Center items horizontally within its column */
+            background-color: #fff;
+            padding: 15px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            width: 350px; /* Fixed width for each player for consistent grid */
+            box-sizing: border-box;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, border 0.2s ease;
+            border: 2px solid transparent; /* Default border */
+        }
+
+        .audio-player-container.active-song {
+            border: 2px solid #28a745; /* Green border for active song */
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3); /* Green glow */
+        }
+
+        .top-row {
+            display: flex;
+            align-items: center;
+            width: 100%; /* Take full width of parent */
+            margin-bottom: 0; /* No margin here as progress bar is global now */
+        }
+
+        .song-cover {
+            width: 70px;
+            height: 70px;
+            border-radius: 8px;
+            margin-right: 15px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+        .song-details {
+            flex-grow: 1;
+            text-align: left;
+            overflow: hidden; /* Ensure text ellipsis works */
+        }
+        .song-title {
+            margin: 0;
+            font-size: 1.8em;
+            color: #333;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .artist-name {
+            font-size: 1.3em;
+            color:black;
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .play-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            outline: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 45px;
+            height: 45px;
+            margin-left: 15px;
+            flex-shrink: 0;
+        }
+        .play-button:hover {
+            background-color: #218838;
+            transform: scale(1.1);
+        }
+        .play-button:active {
+            transform: scale(0.95);
+        }
+        audio {
+            display: none; /* Hide the default audio controls */
+        }
+
+        /* --- Global Player Styles --- */
+        .global-player {
+            position: fixed; /* Fix it to the bottom */
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #f0f0f0; /* Changed from #333 to #f0f0f0 or transparent */
+            color: #333; /* Change text color to dark for contrast on light background */
+            padding: 15px 20px;
+            box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column; /* Stack controls and progress bar */
+            align-items: center;
+            z-index: 1000; /* Ensure it stays on top */
+            box-sizing: border-box; /* Include padding in width */
+        }
+
+        .global-player-controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .global-control-button {
+            background-color: #007bff; /* Blue for global controls */
+            color: white;
+            border: none;
+            padding: 15px 20px;
+            font-size: 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            outline: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .global-control-button:hover {
+            background-color: #0056b3;
+            transform: translateY(-2px);
+        }
+        .global-control-button:active {
+            transform: translateY(0);
+        }
+        .global-control-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        /* Global Progress Bar Styles */
+        .global-progress-container {
+            width: 80%; /* Adjust width as needed */
+            max-width: 600px;
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            cursor: pointer;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .global-progress-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #4CAF50; /* Green fill */
+            border-radius: 5px;
+            transition: width 0.1s linear;
+        }
+
+        .global-song-info {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .global-song-title {
+            font-size: 0.9em;
+            font-weight: 600;
+            margin: 0;
+            color: #333; /* Changed from #f8f8f8 to #333 */
+        }
+
+        .global-artist-name {
+            font-size: 0.1em;
+            color:black; /* Changed from #bbb to #666 */
+            margin-top: 5px;
+        }
+        #main-name {
+            font-size: 3rem;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-weight: bold;
+            background: linear-gradient(90deg, #1a73e8, #00e6fd, #ff2d95, #1a73e8);
+            background-size: 300% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: aurora-move 3s linear infinite;
+            margin: 60px auto;
+            text-align: center;
+        }
+        @keyframes aurora-move {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 100% 50%; }
+        }
+        .artist-name{
+            font-size: large;
+        }
+        .song-title{
+            font-size: larger;
+        }
+    </style>
+</head>
+<body>
+    <h1 id = "main-name">Neo Sync</h1>
+
+    <div class="playlist-container">
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="OTILIA.jpg" alt="Song 1 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">Bilionera</h3></b>
+                    <p class="artist-name">Otilia</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="Bilionera Otilia 128 Kbps.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="Gemini_Generated_Image_4ojc3k4ojc3k4ojc.png" alt="Song 2 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">Ku Lo Sa</h3></b>
+                    <p class="artist-name">Oxlade</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="Oxlade-Ku-Lo-Sa-New-Song-(TrendyBeatz.com).mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="SAO PAULO.jpg" alt="Song 3 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">Sao paulo</h3></b>
+                    <p class="artist-name">Anitta</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="The Weeknd - So Paulo Official Audio.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="Gemini_Generated_Image_b2a3b2b2a3b2b2a3.png" alt="Song 4 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">Chammak Challo</h3></b>
+                    <p class="artist-name">Akon</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="Chammak Challo Ra One 320 Kbps.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="TIMELESS.jpg" alt="Song 5 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">Timeless</h3></b>
+                    <p class="artist-name">Playboy Carti</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="Timeless (with Playboi Carti).mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="Gemini_Generated_Image_uen6bruen6bruen6.png" alt="Song 6 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">ODNAGO</h3></b>
+                    <p class="artist-name">Tatyana Kurtukva</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="ODNOGO ULTRAFUNK (Tiktok remix).mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="one gils.jpg" alt="Song 7 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">One Of The Girls</h3></b>
+                    <p class="artist-name">Jennie,LilyRose</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="One Of The Girls (with JENNIE, Lily Rose Depp) -  The Weeknd, JENNIE, and Lily-Rose Depp.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="shaky.jpg" alt="Song 8 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">Shaky</h3></b>
+                    <p class="artist-name">Sanju Rathod</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="Shaky - Sanju Rathod.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="Gemini_Generated_Image_swhho5swhho5swhh.png" alt="Song 9 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">Cheap Thrills</h3></b>
+                    <p class="artist-name">Sean Paul</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="Sia - Cheap Thrills (ft. Sean Paul) (Lyrics)  Up with it girl Rock with it girl.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="alan.jpg" alt="Song 7 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">Faded</h3></b>
+                    <p class="artist-name">Alan Walker</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="Alan Walker - Faded.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="gagam.jpg" alt="Song 7 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">GANGNAM STYLE</h3></b>
+                    <p class="artist-name">PSY</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="PSY - GANGNAM STYLE [Original Video].mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+        
+        <div class="audio-player-container js-audio-player">
+            <div class="top-row">
+                <img src="shu.jpg" alt="Song 10 Cover" class="song-cover">
+                <div class="song-details">
+                    <b><h3 class="song-title">Shape of U</h3></b>
+                    <p class="artist-name">Ed Sheeran</p>
+                </div>
+                <button class="play-button js-play-button">
+                    <i class="fas fa-play js-play-icon"></i>
+                </button>
+            </div>
+            <audio class="js-audio-element">
+                <source src="Shape Of You - (Raag.Fm).mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+    </div>
+    
+
+    <div class="global-player">
+        <div class="global-song-info">
+            <h3 class="global-song-title js-global-song-title">No Song Playing</h3>
+            <p class="global-artist-name js-global-artist-name"></p>
+        </div>
+        <div class="global-progress-container js-global-progress-container">
+            <div class="global-progress-bar js-global-progress-bar"></div>
+        </div>
+        <div class="global-player-controls">
+            <button id="prevButton" class="global-control-button" disabled>
+                <i class="fas fa-step-backward"></i> Prev
+            </button>
+            <button id="globalPlayPauseButton" class="global-control-button" disabled>
+                <i class="fas fa-play js-global-play-pause-icon"></i>
+            </button>
+            <button id="nextButton" class="global-control-button" disabled>
+                Next <i class="fas fa-step-forward"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const allAudioPlayers = document.querySelectorAll('.js-audio-player');
+        const allAudioElements = document.querySelectorAll('.js-audio-element');
+        const playButtons = document.querySelectorAll('.js-play-button');
+
+        // Global Player Elements
+        const globalPlayPauseButton = document.getElementById('globalPlayPauseButton');
+        const globalPlayPauseIcon = document.querySelector('.js-global-play-pause-icon');
+        const globalProgressBar = document.querySelector('.js-global-progress-bar');
+        const globalProgressContainer = document.querySelector('.js-global-progress-container');
+        const globalSongTitle = document.querySelector('.js-global-song-title');
+        const prevButton = document.getElementById('prevButton');
+        const nextButton = document.getElementById('nextButton');
+
+        let currentPlayingIndex = -1; // Index of the currently playing song in the allAudioElements array
+
+        // Function to update global control button states (enabled/disabled) and song info
+        function updateGlobalControlStates() {
+            if (currentPlayingIndex === -1) {
+                prevButton.disabled = true;
+                globalPlayPauseButton.disabled = true;
+                nextButton.disabled = true;
+                globalPlayPauseIcon.classList.remove('fa-pause');
+                globalPlayPauseIcon.classList.add('fa-play');
+                globalSongTitle.textContent = "No Song Playing";
+                globalArtistName.textContent = "";
+                globalProgressBar.style.width = '0%';
+            } else {
+                prevButton.disabled = false;
+                globalPlayPauseButton.disabled = false;
+                nextButton.disabled = false;
+
+                const currentAudio = allAudioElements[currentPlayingIndex];
+                if (!currentAudio.paused) {
+                    globalPlayPauseIcon.classList.remove('fa-play');
+                    globalPlayPauseIcon.classList.add('fa-pause');
+                } else {
+                    globalPlayPauseIcon.classList.remove('fa-pause');
+                    globalPlayPauseIcon.classList.add('fa-play');
+                }
+
+                // *** CRITICAL FIX: This ensures the global song info is updated ***
+                const currentSongDetails = allAudioPlayers[currentPlayingIndex].querySelector('.song-details');
+                globalSongTitle.textContent = currentSongDetails.querySelector('.song-title').textContent;
+                globalArtistName.textContent = currentSongDetails.querySelector('.artist-name').textContent;
+            }
+        }
+
+        // Function to play a specific song by its index
+        function playSong(index) {
+            if (index < 0 || index >= allAudioElements.length) {
+                console.warn("Attempted to play song out of bounds:", index);
+                return;
+            }
+
+            const targetAudio = allAudioElements[index];
+            const targetIcon = allAudioPlayers[index].querySelector('.js-play-icon');
+            const targetPlayerContainer = allAudioPlayers[index];
+
+            // Pause all currently playing songs and reset their individual icons/active state
+            allAudioElements.forEach((audio, i) => {
+                if (audio !== targetAudio && !audio.paused) {
+                    audio.pause();
+                    allAudioPlayers[i].querySelector('.js-play-icon').classList.remove('fa-pause');
+                    allAudioPlayers[i].querySelector('.js-play-icon').classList.add('fa-play');
+                }
+                allAudioPlayers[i].classList.remove('active-song');
+            });
+
+            // If the clicked song is already playing, pause it. Otherwise, play it.
+            if (currentPlayingIndex === index && !targetAudio.paused) {
+                targetAudio.pause();
+                targetIcon.classList.remove('fa-pause');
+                targetIcon.classList.add('fa-play');
+                targetPlayerContainer.classList.remove('active-song');
+                currentPlayingIndex = -1; // No song actively playing/selected
+            } else {
+                targetAudio.play();
+                targetIcon.classList.remove('fa-play');
+                targetIcon.classList.add('fa-pause');
+                targetPlayerContainer.classList.add('active-song');
+                currentPlayingIndex = index; // Update the index of the currently playing song
+            }
+            // *** This call here is crucial for immediate update after a song selection/toggle ***
+            updateGlobalControlStates();
+        }
+
+        // --- Event Listeners for Individual Song Play Buttons ---
+        playButtons.forEach((button, index) => {
+            button.addEventListener('click', () => {
+                playSong(index); // Play the song corresponding to this button
+            });
+        });
+
+        // --- Event Listeners for Global Controls ---
+        globalPlayPauseButton.addEventListener('click', () => {
+            if (currentPlayingIndex !== -1) {
+                const currentAudio = allAudioElements[currentPlayingIndex];
+                if (!currentAudio.paused) {
+                    currentAudio.pause();
+                } else {
+                    currentAudio.play();
+                }
+            } else if (allAudioElements.length > 0) {
+                // If nothing is playing, start the first song
+                playSong(0);
+            }
+            // No need for updateGlobalControlStates here, as it's handled by playSong or audio events
+        });
+
+        nextButton.addEventListener('click', () => {
+            let nextIndex;
+            if (currentPlayingIndex === -1 || currentPlayingIndex === allAudioElements.length - 1) {
+                nextIndex = 0; // Wrap around to beginning or start from first if no song selected
+            } else {
+                nextIndex = currentPlayingIndex + 1;
+            }
+            playSong(nextIndex);
+        });
+
+        prevButton.addEventListener('click', () => {
+            let prevIndex;
+            if (currentPlayingIndex === -1 || currentPlayingIndex === 0) {
+                prevIndex = allAudioElements.length - 1; // Wrap around to end or go to last if no song selected
+            } else {
+                prevIndex = currentPlayingIndex - 1;
+            }
+            playSong(prevIndex);
+        });
+
+        // --- Event Listeners for Audio Element State Changes (important for syncing icons & global progress) ---
+        allAudioElements.forEach((audio, index) => {
+            const icon = allAudioPlayers[index].querySelector('.js-play-icon');
+            const playerContainer = allAudioPlayers[index];
+
+            audio.addEventListener('timeupdate', () => {
+                // Only update the global progress bar for the currently playing song
+                if (currentPlayingIndex === index && !isNaN(audio.duration)) {
+                    const percentage = (audio.currentTime / audio.duration) * 100;
+                    globalProgressBar.style.width = percentage + '%';
+                }
+            });
+
+            audio.addEventListener('play', () => {
+                icon.classList.remove('fa-play');
+                icon.classList.add('fa-pause');
+                playerContainer.classList.add('active-song');
+                
+                // IMPORTANT: If this 'play' event was triggered externally (e.g., auto-play next),
+                // ensure currentPlayingIndex is correct and other songs are paused.
+                if (currentPlayingIndex !== index) {
+                    currentPlayingIndex = index;
+                    allAudioElements.forEach((otherAudio, otherIndex) => {
+                        if (otherAudio !== audio && !otherAudio.paused) {
+                            otherAudio.pause();
+                            allAudioPlayers[otherIndex].querySelector('.js-play-icon').classList.remove('fa-pause');
+                            allAudioPlayers[otherIndex].querySelector('.js-play-icon').classList.add('fa-play');
+                            allAudioPlayers[otherIndex].classList.remove('active-song');
+                        }
+                    });
+                }
+                // *** CRITICAL FIX: Ensure global player info updates when ANY audio starts playing ***
+                updateGlobalControlStates();
+            });
+
+            audio.addEventListener('pause', () => {
+                icon.classList.remove('fa-pause');
+                icon.classList.add('fa-play');
+                // playerContainer.classList.remove('active-song'); // Optionally remove, but keeping it active on pause makes sense
+                updateGlobalControlStates(); // Update the global play/pause icon
+            });
+
+            audio.addEventListener('ended', () => {
+                icon.classList.remove('fa-pause');
+                icon.classList.add('fa-play');
+                playerContainer.classList.remove('active-song');
+                globalProgressBar.style.width = '0%'; // Reset global progress bar
+
+                // Auto-play next song if one just ended
+                let nextIndex = (index + 1);
+                if (nextIndex < allAudioElements.length) {
+                    playSong(nextIndex); // This will handle setting currentPlayingIndex and calling updateGlobalControlStates
+                } else {
+                    currentPlayingIndex = -1; // Playlist ended
+                    updateGlobalControlStates(); // Revert global player to "No Song Playing"
+                }
+            });
+        });
+
+        // Seek functionality on global progress bar click
+        globalProgressContainer.addEventListener('click', (e) => {
+            if (currentPlayingIndex !== -1) {
+                const currentAudio = allAudioElements[currentPlayingIndex];
+                const clickX = e.offsetX; // X-coordinate of click relative to the element
+                const width = globalProgressContainer.offsetWidth; // Total width of the progress bar container
+                const duration = currentAudio.duration;
+
+                if (!isNaN(duration) && duration > 0) {
+                    currentAudio.currentTime = (clickX / width) * duration;
+                    // No need to call updateGlobalControlStates here, as timeupdate will handle progress bar
+                    // and play/pause state doesn't change on seek unless explicitly done.
+                }
+            }
+        });
+
+        // Initialize button states and song info on load
+        updateGlobalControlStates();
+    </script>
+</body>
+</html>
